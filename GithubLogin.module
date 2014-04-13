@@ -1,0 +1,232 @@
+<?php
+
+class GithubLogin extends WireData implements Module, ConfigurableModule {
+
+	const name = 'github-login';
+	const fieldName = 'github_id';
+
+	public static function getModuleInfo() {
+		return array(
+		 "title" => "GitHub login for website",
+		 "version" => 001,
+		 "summary" => "Allows users to authenticate through GitHub oAuth.",
+		 "autoload" => false
+		);
+	}
+
+	public function init() {
+
+	}
+
+	public function execute() {
+
+		// Prevent association of GitHub Account to an existing user
+		if ($this->user->isLoggedin()) {
+			echo "Already logged in.";
+			return;
+		}
+
+		$client_id = $this->githubAppId;
+		$app_secret = $this->githubAppSecret;
+		$redirect_uri = $this->page->httpUrl;
+
+		//session_start();
+		$code = $_REQUEST["code"];
+
+		if(empty($code)) {
+			$_SESSION['state'] = md5(uniqid(rand(), TRUE)); //CSRF protection
+			$dialog_url = "https://github.com/login/oauth/authorize?client_id=" . $client_id . "&redirect_uri=" . $redirect_uri . "?state=" . $_SESSION['state'] . "&scope=user:email";
+			echo("<script> top.location.href='" . $dialog_url . "'</script>");
+		}
+
+		if($_SESSION['state'] && ($_SESSION['state'] === $_REQUEST['state'])) {
+			$token_url = "https://github.com/login/oauth/access_token?"
+				. "client_id=" . $client_id . "&redirect_uri=" . urlencode($redirect_uri)
+				. "&client_secret=" . $app_secret . "&code=" . $code;
+
+			$response = file_get_contents($token_url);
+			$params = null;
+			parse_str($response, $params);
+
+			$access_url = "https://api.github.com/user?access_token=" . $params['access_token'];
+
+			// Add stream context
+			$options  = array('http' => array('user_agent'=> $_SERVER['HTTP_USER_AGENT']));
+			$context  = stream_context_create($options);
+
+			$ghUserData = json_decode(file_get_contents($access_url, false, $context));
+
+			$this->processLogin($ghUserData);
+		}
+		else {
+			echo("The state does not match. You may be a victim of CSRF.");
+		}
+	}
+
+	public function processLogin($ghUserData) {
+		$id = $ghUserData->id;
+		$u = $this->users->get("github_id=$id");
+
+		// echo "<pre>";
+		// print_r($ghUserData);
+		// echo "</pre>";
+		// return;
+
+		// First we create random pass to use in login
+		$uniqid = uniqid();
+		$pass = sha1($uniqid . $id . $ghUserData->updated_at);
+
+		// User has logged in earlier with github id, great news let's login
+		if ($u->id) {
+			$u->of(false);
+			$u->pass = $pass;
+			$u->addRole(self::name);
+			$u->save();
+		}
+
+		// User has not logged in before and autogenerate is on
+		else if (!$this->disableAutogenerate) {
+			$name = $this->sanitizer->pageName($ghUserData->name, true);
+			$u = $this->users->get("name=$name");
+
+			// All seems to be fine, let's create the user
+			$u = new User;
+			$u->name = $name;
+			$u->github_id = $ghUserData->id;
+			$u->pass = $pass;
+			$u->addRole(self::name);
+			$u->save();
+		} else {
+			echo $this->renderCreateUserForm();
+		}
+
+		$this->session->login($u->name, $pass);
+		$p = $this->pages->get($this->redirectPage);
+		if (!$p->id) {
+			$p = $this->pages->get(1);
+		}
+		$this->session->redirect($p->httpUrl);
+	}
+
+	public function renderCreateUserForm() {
+
+	}
+
+	static public function getModuleConfigInputfields(Array $data) {
+		$fields = new InputfieldWrapper();
+
+		// since this is a static function, we can't use $this->modules, so get them from the global wire() function
+		$modules = wire('modules');
+
+		$field = $modules->get("InputfieldText");
+		$field->attr('name', 'githubAppId');
+		$field->attr('value', $data['githubAppId']);
+		$field->label = "GitHub App Id";
+		$field->description = 'App Id for your website. You can create one from here: https://github.com/settings/applications/new';
+		$fields->add($field);
+
+		$field = $modules->get("InputfieldText");
+		$field->attr('name', 'githubAppSecret');
+		$field->attr('value', $data['githubAppSecret']);
+		$field->label = "GitHub App Secret";
+		$field->description = 'App Secret for your website. Available in your app\'s settings page https://github.com/settings/applications';
+		$fields->add($field);
+
+		/*
+		$field = $modules->get("InputfieldCheckbox");
+		$field->attr('name', 'disableAutogenerate');
+		$field->attr('value', 1);
+		$field->attr('checked', empty($data['disableAutogenerate']) ? '' : 'checked');
+		$field->label = "Don't set username automatically, but let the user choose username when doing the first login";
+		$fields->add($field);
+		*/
+
+		$field = $modules->get("InputfieldPageListSelect");
+		$field->attr('name', 'redirectPage');
+		$field->attr('value', $data['redirectPage']);
+		$field->label = "Page where user is redirected after succesful login";
+		$fields->add($field);
+
+		return $fields;
+
+	}
+
+	public function install() {
+
+		$name = self::name;
+		$fieldName = self::fieldName;
+
+		$page = $this->pages->get("/$name/");
+		if($page->id) throw new WireException("There is already a page installed called '/$name/'");
+
+		$template = $this->templates->get($name);
+		if($template) throw new WireException("There is already a template installed called '$name'");
+
+		$fieldgroup = $this->fieldgroups->get($name);
+		if($fieldgroup) throw new WireException("There is already a fieldgroup installed called '$name'");
+
+		$field = $this->fields->get($fieldName);
+		if($field) throw new WireException("There is already a field installed called '$fieldName'");
+
+		$role = $this->roles->get($name);
+		if (!$role->id) {
+			$this->roles->add($name);
+			$this->message("Create role called $name");
+		}
+
+		$fieldgroup = new Fieldgroup();
+		$fieldgroup->name = $name;
+		$title = $this->fields->get('title');
+		if($title) $fieldgroup->add($title);
+		$fieldgroup->save();
+
+		$template = new Template();
+		$template->name = $name;
+		$template->fieldgroup = $fieldgroup;
+		$template->allowPageNum = 1;
+		$template->save();
+		$this->message("Installed template $name");
+
+		$page = new Page();
+		$page->template = $template;
+		$page->parent = '/';
+		$page->name = $name;
+		$page->title = "GitHub Login";
+		$page->addStatus(Page::statusHidden);
+		$page->save();
+		$this->message("Installed page $page->path");
+
+		$basename = $name . ".php";
+		$src = $this->config->paths->SessionGithubLogin . $basename;
+		$dst = $this->config->paths->templates . $basename;
+		if(@copy($src, $dst)) {
+			$this->message("Installed template file $basename");
+		}	else {
+			$this->error("Templates directory is not writable so we were unable to auto-install the $basename template file.");
+			$this->error("To complete the installation please copy $basename from $src to $dst");
+		}
+
+
+		// Create hidden inputfield
+		$input = new InputfieldText;
+		$input->set('collapsed', Inputfield::collapsedHidden);
+
+		// Create field called github and set details and inputfield
+		$f = new Field();
+		$f->type = $this->modules->get("FieldtypeText");
+		$f->name = $fieldName;
+		$f->label = 'GitHub ID';
+		$f->description = 'Stores GitHub id for user';
+		$f->inputfield = $input;
+		$f->save();
+
+		// Add the field to user fieldgroup (basically means user template in this context)
+		$fg = $this->fieldgroups->get('user');
+		$fg->add($f);
+		$fg->save();
+	}
+
+	public function uninstall() {
+
+	}
+}
