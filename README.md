@@ -10,7 +10,7 @@ This module provides simple way to allow facebook login/registration for your si
 
 It creates a new page called /github-login/ (you can move/rename that later),
 which does quick github login. It also adds github_id field to user template,
-that is used to match with fb account.
+that is used to match with GitHub account.
 
 ## INSTALL INSTRUCTIONS
 
