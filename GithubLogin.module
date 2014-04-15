@@ -30,7 +30,6 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 		$app_secret = $this->githubAppSecret;
 		$redirect_uri = $this->page->httpUrl;
 
-		//session_start();
 		$code = $_REQUEST["code"];
 
 		if(empty($code)) {
@@ -66,11 +65,6 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 	public function processLogin($ghUserData) {
 		$id = $ghUserData->id;
 		$u = $this->users->get("github_id=$id");
-
-		// echo "<pre>";
-		// print_r($ghUserData);
-		// echo "</pre>";
-		// return;
 
 		// First we create random pass to use in login
 		$uniqid = uniqid();
