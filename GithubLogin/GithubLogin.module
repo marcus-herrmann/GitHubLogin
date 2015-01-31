@@ -89,7 +89,7 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 
 			// All seems to be fine, let's create the user
 			$u = new User;
-			$u->name = $name;
+			$u->name      = $ghUserData->login;
 			$u->github_id = $ghUserData->id;
 			$u->pass = $pass;
 			$u->addRole(self::name);
