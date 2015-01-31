@@ -36,6 +36,10 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 			$_SESSION['state'] = md5(uniqid(rand(), TRUE)); //CSRF protection
 			$dialog_url = "https://github.com/login/oauth/authorize?client_id=" . $client_id . "&redirect_uri=" . $redirect_uri . "?state=" . $_SESSION['state'] . "&scope=user:email";
 			echo("<script> top.location.href='" . $dialog_url . "'</script>");
+		if ( empty( $code ) ) {
+			$_SESSION['state'] = md5( uniqid( rand(), true ) ); // CSRF protection
+			$dialog_url = "https://github.com/login/oauth/authorize?client_id=" . $client_id . "&redirect_uri=" . $redirect_uri . "?state=" . $_SESSION['state'] . "&scope=user";
+			echo( "<script> top.location.href='" . $dialog_url . "'</script>" );
 		}
 
 		if($_SESSION['state'] && ($_SESSION['state'] === $_REQUEST['state'])) {
