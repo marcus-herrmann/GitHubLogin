@@ -8,7 +8,7 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 	public static function getModuleInfo() {
 		return array(
 			"title"    => "GitHub login for website",
-			"version"  => 001,
+			"version"  => 20,
 			"summary"  => "Allows users to authenticate through GitHub oAuth.",
 			"autoload" => false
 		);
