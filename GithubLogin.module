@@ -63,6 +63,7 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 			$ghUserData = json_decode( file_get_contents( $access_url, false, $context ) );
 
 			$this->processLogin( $ghUserData );
+
 		} else {
 			echo( "The state does not match. You may be a victim of CSRF." );
 		}
@@ -76,7 +77,7 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 		$uniqid = uniqid();
 		$pass   = sha1( $uniqid . $id . $ghUserData->updated_at );
 
-		// User has logged in earlier with github id, great news let's login
+		// User has logged in earlier with github id, great news, let's login
 		if ( $u->id ) {
 			$u->of( false );
 			$u->pass = $pass;
@@ -85,6 +86,11 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 		} else {
 
 			// All seems to be fine, let's create the user
+			
+			/* You can retreive values like 'name', 'gravatar_id', 'location', 'company', etc. from $ghUserData here
+			   Keep in mind that 'email' is only available if the user has granted permission on GitHub that their
+			   email is publicly visible */
+
 			$u            = new User;
 			$u->name      = $ghUserData->login;
 			$u->github_id = $ghUserData->id;
