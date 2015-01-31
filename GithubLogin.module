@@ -35,14 +35,20 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 
 		if ( empty( $code ) ) {
 			$_SESSION['state'] = md5( uniqid( rand(), true ) ); // CSRF protection
-			$dialog_url = "https://github.com/login/oauth/authorize?client_id=" . $client_id . "&redirect_uri=" . $redirect_uri . "?state=" . $_SESSION['state'] . "&scope=user";
+			$dialog_url = "https://github.com/login/oauth/authorize?"
+						  ."client_id="  . $client_id
+						  . "&redirect_uri=" . $redirect_uri
+						  . "?state=" . $_SESSION['state']
+						  . "&scope=user";
 			echo( "<script> top.location.href='" . $dialog_url . "'</script>" );
 		}
 
 		if ( $_SESSION['state'] && ( $_SESSION['state'] === $_REQUEST['state'] ) ) {
 			$token_url = "https://github.com/login/oauth/access_token?"
-						 . "client_id=" . $client_id . "&redirect_uri=" . urlencode( $redirect_uri )
-						 . "&client_secret=" . $app_secret . "&code=" . $code;
+						 . "client_id=" . $client_id
+						 . "&redirect_uri=" . urlencode( $redirect_uri )
+						 . "&client_secret=" . $app_secret
+						 . "&code=" . $code;
 
 			$response = file_get_contents( $token_url );
 			$params   = null;
@@ -90,12 +96,14 @@ class GithubLogin extends WireData implements Module, ConfigurableModule {
 
 		$this->session->login( $u->name, $pass );
 		$p = $this->pages->get( $this->redirectPage );
+		
 		if ( ! $p->id ) {
 			$p = $this->pages->get( 1 );
 		}
+
 		$this->session->redirect( $p->httpUrl );
 	}
-	
+
 
 	static public function getModuleConfigInputfields( Array $data ) {
 		$fields = new InputfieldWrapper();
